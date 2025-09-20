@@ -1,0 +1,161 @@
+# Import necessary libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+# For geospatial analysis (optional but impressive)
+# import geopandas as gpd
+# import folium
+
+# Set the style for plots
+plt.style.use('ggplot')
+sns.set_palette("Set2")
+%matplotlib inline  
+
+# 1. CREATE MOCK DATASET (Simulating data you might have gathered/cleaned)
+np.random.seed(42)  # For reproducibility
+
+# Number of beneficiaries
+n = 2000
+
+# Generate mock data
+data = {
+    'beneficiary_id': range(1, n+1),
+    'state': np.random.choice(['Lagos', 'Kano', 'Rivers', 'Oyo', 'Anambra', 'Kaduna', 'Edo', 'Ogun'], n),
+    'lga': np.random.choice(['LGA_A', 'LGA_B', 'LGA_C', 'LGA_D', 'LGA_E'], n), # Local Government Area
+    'business_sector': np.random.choice(['Retail Trade', 'Food Services', 'Artisan', 'Agriculture', 'Fashion'], n),
+    'loan_amount_ngn': np.random.randint(10000, 50000, n), # Loan between 10k-50k
+    'previous_avg_daily_income': np.random.randint(1500, 6000, n), # Income before loan
+    'current_avg_daily_income': np.random.randint(2000, 10000, n), # Income after loan
+    'loan_utilization_score': np.random.randint(1, 10, n), # Score on how well loan was used (1-10)
+    'repayment_status': np.random.choice(['Fully Repaid', 'Partially Repaid', 'Defaulted'], n, p=[0.7, 0.2, 0.1]), # Repayment status
+    'gender': np.random.choice(['Male', 'Female'], n, p=[0.4, 0.6]), # Assuming 60% female beneficiaries
+}
+
+# Create DataFrame
+df = pd.DataFrame(data)
+
+# Calculate a new metric: Income Increase Percentage
+df['income_increase_pct'] = ((df['current_avg_daily_income'] - df['previous_avg_daily_income']) / df['previous_avg_daily_income']) * 100
+df['income_increase_absolute'] = df['current_avg_daily_income'] - df['previous_avg_daily_income']
+
+# Display basic info
+print("DATASET OVERVIEW")
+print("="*50)
+print(f"Dataset Shape: {df.shape}")
+print("\nFirst 5 records:")
+print(df.head())
+print("\n" + "="*50)
+print("\nBASIC STATISTICS:")
+print(df[['loan_amount_ngn', 'previous_avg_daily_income', 'current_avg_daily_income', 'income_increase_pct']].describe())
+print("\n" + "="*50)
+
+# 2. DATA ANALYSIS & VISUALIZATION
+
+# KPI 1: Overall Repayment Rate
+repayment_counts = df['repayment_status'].value_counts()
+total_loans = repayment_counts.sum()
+full_repaid = repayment_counts['Fully Repaid']
+repayment_rate = (full_repaid / total_loans) * 100
+
+print(f"KPI 1: OVERALL LOAN REPAYMENT RATE")
+print(f"----------------------------------")
+print(f"Total Loans Disbursed: {total_loans}")
+print(f"Fully Repaid: {full_repaid}")
+print(f"Repayment Rate: {repayment_rate:.2f}%")
+print("\n")
+
+# Visualization 1: Repayment Status
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+repayment_counts.plot(kind='bar', ax=ax1, color=['green', 'orange', 'red'])
+ax1.set_title('Loan Repayment Status Distribution')
+ax1.set_ylabel('Number of Beneficiaries')
+ax1.tick_params(axis='x', rotation=45)
+
+# KPI 2: Average Income Increase
+avg_income_increase = df['income_increase_absolute'].mean()
+avg_income_increase_pct = df['income_increase_pct'].mean()
+
+print(f"KPI 2: AVERAGE INCOME IMPACT")
+print(f"---------------------------")
+print(f"Average Daily Income Increase: ₦{avg_income_increase:.2f}")
+print(f"Average Percentage Increase: {avg_income_increase_pct:.2f}%")
+print("\n")
+
+# Visualization 2: Income Distribution Before vs. After
+sns.histplot(df['previous_avg_daily_income'], kde=True, label='Before Loan', ax=ax2, alpha=0.6, color='skyblue')
+sns.histplot(df['current_avg_daily_income'], kde=True, label='After Loan', ax=ax2, alpha=0.6, color='salmon')
+ax2.set_title('Distribution of Daily Income: Before vs. After Loan')
+ax2.set_xlabel('Daily Income (₦)')
+ax2.legend()
+plt.tight_layout()
+plt.show()
+
+# KPI 3: Performance by Business Sector
+print("KPI 3: PERFORMANCE BY BUSINESS SECTOR")
+print("-------------------------------------")
+sector_performance = df.groupby('business_sector').agg({
+    'income_increase_pct': 'mean',
+    'repayment_status': lambda x: (x == 'Fully Repaid').mean() * 100, # Repayment rate per sector
+    'beneficiary_id': 'count'
+}).round(2).rename(columns={'income_increase_pct': 'avg_income_increase_pct', 'beneficiary_id': 'count'})
+sector_performance_sorted = sector_performance.sort_values('avg_income_increase_pct', ascending=False)
+print(sector_performance_sorted)
+print("\n")
+
+# Visualization 3: Sector Performance
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+
+# Plot 1: Income Increase by Sector
+sns.barplot(x=sector_performance_sorted.index, y='avg_income_increase_pct', data=sector_performance_sorted, ax=ax1)
+ax1.set_title('Average Income Increase % by Business Sector')
+ax1.set_ylabel('Income Increase %')
+ax1.tick_params(axis='x', rotation=45)
+
+# Plot 2: Repayment Rate by Sector
+sector_performance_sorted_repayment = sector_performance.sort_values('repayment_status', ascending=False)
+sns.barplot(x=sector_performance_sorted_repayment.index, y='repayment_status', data=sector_performance_sorted_repayment, ax=ax2)
+ax2.set_title('Loan Repayment Rate % by Business Sector')
+ax2.set_ylabel('Repayment Rate %')
+ax2.tick_params(axis='x', rotation=45)
+plt.tight_layout()
+plt.show()
+
+# KPI 4: Performance by Gender
+print("KPI 4: PERFORMANCE BY GENDER")
+print("----------------------------")
+gender_performance = df.groupby('gender').agg({
+    'income_increase_pct': 'mean',
+    'repayment_status': lambda x: (x == 'Fully Repaid').mean() * 100
+}).round(2)
+print(gender_performance)
+print("\n")
+
+# 3. GEOGRAPHICAL ANALYSIS (Conceptual - would require a GeoJSON map of Nigeria's states)
+# This is a placeholder to show you know the step. Actual mapping requires more complex setup.
+print("GEOGRAPHICAL DISTRIBUTION (Conceptual)")
+print("---------------------------------------")
+state_distribution = df['state'].value_counts()
+print("Number of Beneficiaries per State:")
+print(state_distribution)
+
+# With a GeoJSON file, you could create a chloropleth map here using geopandas/folium.
+# This would be a huge plus for your portfolio.
+
+# 4. KEY INSIGHTS AND RECOMMENDATIONS (The "So What?" of your analysis)
+print("\n" + "="*60)
+print("SUMMARY OF KEY INSIGHTS & RECOMMENDATIONS")
+print("="*60)
+print("""
+1. FINANCIAL SUSTAINABILITY: The scheme has a strong repayment rate of {repayment_rate:.2f}%, indicating good beneficiary selection and financial discipline.
+2. ECONOMIC IMPACT: The micro-loans led to a significant average daily income increase of ₦{avg_income_inc:.0f} ({avg_income_pct:.2f}%), demonstrating positive economic impact at the grassroots level.
+3. SECTOR PERFORMANCE: Sectors like '{top_sector}' showed the highest income growth, suggesting these sectors might be more responsive to micro-capital injections. Targeting similar businesses could maximize impact.
+4. GENDER INCLUSIVITY: The majority of beneficiaries are women ({pct_female:.0f}%), aligning with empowerment goals. Their repayment rate is also strong, confirming their reliability.
+5. RECOMMENDATION: Consider increasing loan amounts or offering tiered loans for top-performing sectors and reliable beneficiaries (those who fully repaid the first loan) to further amplify the economic impact.
+""".format(repayment_rate=repayment_rate,
+           avg_income_inc=avg_income_increase,
+           avg_income_pct=avg_income_increase_pct,
+           top_sector=sector_performance_sorted.index[0],
+           pct_female=(df['gender'].value_counts()['Female'] / n * 100))
+     )
